@@ -32,9 +32,8 @@ class RefreshConfig extends StatelessWidget {
         return false;
       },
       
-      child: MaterialApp(
-        home: ListViewPage(),
-        debugShowCheckedModeBanner: false,
+      child: Scaffold(
+        body: ListViewPage(),
       ), //
     );
   }

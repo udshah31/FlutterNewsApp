@@ -2,79 +2,108 @@ import 'package:flutter/material.dart';
 import 'package:nepal_sansar/model/news.dart';
 import 'package:nepal_sansar/network/news_service.dart';
 import 'package:nepal_sansar/pages/detailPage/detail_page.dart';
+import 'package:nepal_sansar/pagination/refresh_configuration.dart';
 import 'package:nepal_sansar/widgets/item_widget.dart';
+import 'package:pull_to_refresh/pull_to_refresh.dart';
 
-
-class NewsPage extends StatefulWidget {
+class NewsPage extends StatelessWidget {
   @override
-  _NewsPageState createState() => _NewsPageState();
+  Widget build(BuildContext context) {
+    return RefreshConfig();
+  }
 }
 
-class _NewsPageState extends State<NewsPage> {
-   int page = 1;
-  List<News> _list = [];
-  ScrollController _scrollController = ScrollController();
+class ListViewPage extends StatefulWidget {
+  const ListViewPage({Key? key}) : super(key: key);
 
-@override
+  @override
+  _ListViewPageState createState() => _ListViewPageState();
+}
+
+class _ListViewPageState extends State<ListViewPage> {
+  int page = 1;
+  RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
+  List<News> data = [];
+  GlobalKey _contentKey = GlobalKey();
+  GlobalKey _refresherKey = GlobalKey();
+
+  @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels ==
-          _scrollController.position.maxScrollExtent) {
-        _getMoreList();
-      }
+    NewsService.getNews().then((dataFromServer) {
+      setState(() {
+        data = dataFromServer;
+      });
     });
   }
 
-  _getMoreList() async {
-    int nextPage = page++;
-    var list = await NewsService.getNews(page: nextPage);
-    _list.addAll(list);
-    setState(() {});
+  void _onRefresh() async {
+    print("_onRefresh");
+    await Future.delayed(Duration(seconds: 2));
+    var list = await NewsService.getNews(page: 1);
+    data.clear();
+    page = 1;
+    data.addAll(list);
+    setState(() {
+      _refreshController.refreshCompleted();
+    });
   }
 
+  void _onLoading() async {
+    print("_onloading");
+    page++;
+    var list = await NewsService.getNews(page: page);
+    data.addAll(list);
+    await Future.delayed(Duration(seconds: 2));
+    setState(() {
+      _refreshController.loadComplete();
+    });
+  }
+
+  Widget buildCtn() {
+    // ignore: unnecessary_null_comparison
+    return (data != null && data.isNotEmpty)
+        ? ListView.builder(
+            key: _contentKey,
+            itemBuilder: (context, index) {
+              return InkWell(
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => DetailPage(news: data[index]))),
+                child: ItemWidget(news: data[index]),
+              );
+            },
+            itemCount: data.length)
+        : Center(
+            child: CircularProgressIndicator(),
+          );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: FutureBuilder<List<News>>(
-        future: NewsService.getNews(),
-        builder: (context, data) {
-          if (data.hasError) {
-            return Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (data.connectionState == ConnectionState.done) {
-            return ListView.builder(
-              controller: _scrollController,
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemBuilder: (context, index) {
-                return InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            DetailPage(news: data.data![index])),
-                  ),
-                  child: ItemWidget(
-                    news: data.data![index],
-                  ),
-                );
-
-                // now get your data data into widget , when you re done , tell me if it works
-              },
-              itemCount: data.data!.length,
-            );
-          }
-          return Center(
-            child: CircularProgressIndicator(),
-          );
-        },
+    return RefreshConfiguration(
+      enableLoadingWhenFailed: true,
+      enableLoadingWhenNoData: true,
+      child: Scaffold(
+        body: SmartRefresher(
+          key: _refresherKey,
+          controller: _refreshController,
+          enablePullUp: true,
+          child: buildCtn(),
+          physics: BouncingScrollPhysics(),
+          footer: ClassicFooter(
+            loadStyle: LoadStyle.ShowWhenLoading,
+          ),
+          onRefresh: _onRefresh,
+          onLoading: _onLoading,
+        ),
       ),
+      headerBuilder: () => WaterDropMaterialHeader(
+        backgroundColor: Theme.of(context).primaryColor,
+      ),
+      footerTriggerDistance: 30,
     );
   }
 }
-
