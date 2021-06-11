@@ -1,1 +1,1 @@
-GET https://nepalsansar.com//wp-json/wp/v2/posts?per_page=10&order_date=desc&page=2&categories=1
+GET https://nepalsansar.com//wp-json/wp/v2/posts?per_page=10&order_date=desc&page=1
